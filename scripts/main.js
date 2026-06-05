@@ -7,6 +7,7 @@ import { Player } from "./player";
 import { Physics } from "./physics";
 import { blocks } from "./blocks";
 import { ModelLoader } from "./modelLoader";
+import { MultiplayerClient } from "./multiplayer";
 
 const stats = new Stats();
 document.body.append(stats.dom);
@@ -38,6 +39,7 @@ scene.add(world);
 
 const player = new Player(scene);
 const physics = new Physics(scene);
+const multiplayer = new MultiplayerClient({ scene, world, player });
 
 const modelLoader = new ModelLoader();
 modelLoader.loadModels((models) => {
@@ -70,23 +72,20 @@ function setupLights() {
 }
 
 function onMouseDown(event) {
+    if (event.target?.closest?.('#chat')) return;
+
     if (player.controls.isLocked && player.selectedCoords) {
+        const coords = player.selectedCoords.clone();
+
         if (player.activeBlockId === blocks.empty.id) {
-            // console.log(`Removing block at ${JSON.stringify(player.selectedCoords)}`);
-            world.removeBlock(
-                player.selectedCoords.x,
-                player.selectedCoords.y,
-                player.selectedCoords.z
-            );
+            world.removeBlock(coords.x, coords.y, coords.z);
             player.tool.startAnimation();
+            multiplayer.sendBlockChange(coords, blocks.empty.id);
+            multiplayer.sendInteraction('mine');
         } else {
-            // console.log(`Adding block at ${JSON.stringify(player.selectedCoords)}`);
-            world.addBlock(
-                player.selectedCoords.x,
-                player.selectedCoords.y,
-                player.selectedCoords.z,
-                player.activeBlockId
-            );
+            world.addBlock(coords.x, coords.y, coords.z, player.activeBlockId);
+            multiplayer.sendBlockChange(coords, player.activeBlockId);
+            multiplayer.sendInteraction('place');
         }
     }
 }
@@ -111,6 +110,8 @@ function animate() {
         sun.target.position.copy(player.position);
     }
 
+    multiplayer.update(dt);
+
     renderer.render(scene, player.controls.isLocked ? player.camera : orbitCamera);
     stats.update();
 
@@ -126,5 +127,5 @@ window.addEventListener("resize", () => {
 })
 
 setupLights();
-createUI(scene, world, player, physics);
+createUI(scene, world, player, multiplayer);
 animate();
