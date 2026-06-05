@@ -1,7 +1,7 @@
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { resources } from './blocks';
 
-export function createUI(scene, world, player) {
+export function createUI(scene, world, player, multiplayer) {
     const gui = new GUI().close();
 
     const sceneFolder = gui.addFolder('Scene');
@@ -46,5 +46,6 @@ export function createUI(scene, world, player) {
 
     gui.onChange(() => {
         world.generate(true);
+        multiplayer?.sendWorldParams(world.params);
     });
 }
