@@ -37,6 +37,7 @@ h1 {
 
     display: flex;
     justify-content: center;
+    pointer-events: none;
 }
 
 #toolbar {
@@ -86,4 +87,82 @@ h1 {
     font-size: 2em;
     font-family: 'Minecraft';
     color: white;
+}
+
+#multiplayer-panel {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    min-width: 220px;
+    padding: 10px 12px;
+    color: white;
+    background: rgba(0, 0, 0, 0.45);
+    border: 3px solid rgba(255, 255, 255, 0.65);
+    text-shadow: 2px 2px 0 #000;
+    z-index: 3;
+    pointer-events: none;
+}
+
+#multiplayer-status {
+    font-size: 1rem;
+    margin-bottom: 6px;
+}
+
+#multiplayer-count,
+#multiplayer-name {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+#chat {
+    position: fixed;
+    left: 12px;
+    bottom: 104px;
+    width: min(480px, calc(100vw - 24px));
+    color: white;
+    text-shadow: 2px 2px 0 #000;
+    z-index: 4;
+}
+
+#chat-log {
+    max-height: 190px;
+    overflow: hidden;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+}
+
+.chat-line {
+    margin: 3px 0;
+    overflow-wrap: anywhere;
+}
+
+.chat-line.system {
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.chat-name {
+    font-weight: bold;
+}
+
+#chat-form {
+    margin-top: 6px;
+}
+
+#chat-input {
+    display: none;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 10px;
+    color: white;
+    font-family: 'Minecraft', sans-serif;
+    font-size: 1rem;
+    background: rgba(0, 0, 0, 0.75);
+    border: 3px solid rgba(255, 255, 255, 0.7);
+    outline: none;
+}
+
+#chat-input:focus {
+    display: block;
 }
