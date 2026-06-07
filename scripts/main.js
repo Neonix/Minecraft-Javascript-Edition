@@ -76,13 +76,18 @@ function onMouseDown(event) {
 
     if (player.controls.isLocked && player.selectedCoords) {
         const coords = player.selectedCoords.clone();
+        const selectedBlock = world.getBlock(coords.x, coords.y, coords.z);
 
         if (player.activeBlockId === blocks.empty.id) {
+            if (!selectedBlock || selectedBlock.id === blocks.empty.id) return;
+
             world.removeBlock(coords.x, coords.y, coords.z);
             player.tool.startAnimation();
             multiplayer.sendBlockChange(coords, blocks.empty.id);
             multiplayer.sendInteraction('mine');
         } else {
+            if (!selectedBlock || selectedBlock.id !== blocks.empty.id) return;
+
             world.addBlock(coords.x, coords.y, coords.z, player.activeBlockId);
             multiplayer.sendBlockChange(coords, player.activeBlockId);
             multiplayer.sendInteraction('place');
