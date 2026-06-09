@@ -19,33 +19,33 @@ import {
     updateProfileFromBlock
 } from './server/gameState.js';
 import { handleChatCommand, sendProfile, sendSystemMessage } from './server/chatCommands.js';
+import { installDiagnostics } from './server/diagnostics.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
-const MAX_CHAT_LENGTH = 180;
-const VALID_BLOCK_IDS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 const SAVE_INTERVAL_MS = 15_000;
 const WORLD_EVENT_INTERVAL_MS = 180_000;
+const MAX_CHAT_LENGTH = 180;
+const VALID_BLOCK_IDS = new Set([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
 const app = express();
 const httpServer = createHttpServer(app);
-const io = new Server(httpServer, {
-    cors: {
-        origin: '*'
-    }
-});
-
+const io = new Server(httpServer, { cors: { origin: '*' } });
 const players = new Map();
+
+installDiagnostics(app, io, players);
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
 }
 
+function safeNumber(value, fallback = 0) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : fallback;
+}
+
 function sanitizeNickname(nickname) {
-    const cleaned = String(nickname || '')
-        .replace(/[^\p{L}\p{N}_\- ]/gu, '')
-        .trim()
-        .slice(0, 18);
+    const cleaned = String(nickname || '').replace(/[^\p{L}\p{N}_\- ]/gu, '').trim().slice(0, 18);
     return cleaned || `Player-${Math.floor(Math.random() * 9999)}`;
 }
 
@@ -54,15 +54,9 @@ function sanitizeColor(color) {
     return /^#[0-9a-f]{6}$/i.test(value) ? value : '#4f8cff';
 }
 
-function safeNumber(value, fallback = 0) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : fallback;
-}
-
 function sanitizePlayerState(rawState = {}) {
     const position = rawState.position || {};
     const rotation = rawState.rotation || {};
-
     return {
         clientId: slugify(rawState.clientId || rawState.nickname, 'client'),
         nickname: sanitizeNickname(rawState.nickname),
@@ -86,7 +80,6 @@ function sanitizePlayerState(rawState = {}) {
 
 function sanitizeWorldParams(params) {
     if (!params || typeof params !== 'object') return null;
-
     return {
         seed: clamp(safeNumber(params.seed), 0, 1000000),
         terrain: {
@@ -120,22 +113,8 @@ function normalizeBlockChange(payload = {}) {
     const x = Math.round(safeNumber(payload.x));
     const y = Math.round(safeNumber(payload.y));
     const z = Math.round(safeNumber(payload.z));
-
-    if (!VALID_BLOCK_IDS.has(blockId)) return null;
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
-    if (y < 0 || y > 255) return null;
-
-    return {
-        x,
-        y,
-        z,
-        blockId,
-        previousBlockId: VALID_BLOCK_IDS.has(previousBlockId) ? previousBlockId : null
-    };
-}
-
-function applyBlockChange(change) {
-    gameState.data[getDataStoreKey(change.x, change.y, change.z)] = change.blockId;
+    if (!VALID_BLOCK_IDS.has(blockId) || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z) || y < 0 || y > 255) return null;
+    return { x, y, z, blockId, previousBlockId: VALID_BLOCK_IDS.has(previousBlockId) ? previousBlockId : null };
 }
 
 function decorateStateWithProfile(state, profile) {
@@ -163,19 +142,21 @@ function broadcastSystemMessage(message) {
     sendSystemMessage(io, message);
 }
 
+function applyBlockChange(change) {
+    gameState.data[getDataStoreKey(change.x, change.y, change.z)] = change.blockId;
+}
+
 function denyBlockChange(socket, change, reason) {
     sendSystemMessage(socket, reason);
-
-    if (change.previousBlockId !== null) {
-        socket.emit('block:change', {
-            x: change.x,
-            y: change.y,
-            z: change.z,
-            blockId: change.previousBlockId,
-            playerId: 'server',
-            createdAt: Date.now()
-        });
-    }
+    if (change.previousBlockId === null) return;
+    socket.emit('block:change', {
+        x: change.x,
+        y: change.y,
+        z: change.z,
+        blockId: change.previousBlockId,
+        playerId: 'server',
+        createdAt: Date.now()
+    });
 }
 
 function isWorldEventActive(type) {
@@ -183,34 +164,33 @@ function isWorldEventActive(type) {
 }
 
 function refreshWorldEvent() {
-    if (gameState.worldEvent && gameState.worldEvent.expiresAt <= Date.now()) {
-        const ended = gameState.worldEvent.label || 'Événement monde';
-        gameState.worldEvent = null;
-        io.emit('world:meta', publicMeta());
-        broadcastSystemMessage(`${ended} terminé.`);
-        scheduleSave();
-    }
+    if (!gameState.worldEvent || gameState.worldEvent.expiresAt > Date.now()) return;
+    const ended = gameState.worldEvent.label || 'Événement monde';
+    gameState.worldEvent = null;
+    io.emit('world:meta', publicMeta());
+    broadcastSystemMessage(`${ended} terminé.`);
+    scheduleSave();
+}
+
+function notifyQuest(socket, profile, completedQuest) {
+    if (!completedQuest) return;
+    const next = profile.quest.type === 'mine' ? 'miner' : profile.quest.type === 'place' ? 'placer' : 'gagner';
+    sendSystemMessage(socket, `Quête terminée +${completedQuest.reward} coins. Nouvelle quête: ${next} ${profile.quest.target}.`);
 }
 
 function startWorldEvents() {
     setInterval(() => {
         refreshWorldEvent();
-        const onlineProfiles = [...players.values()]
-            .map((state) => gameState.profiles[state.clientId])
-            .filter(Boolean);
-
+        const onlineProfiles = [...players.values()].map((state) => gameState.profiles[state.clientId]).filter(Boolean);
         if (onlineProfiles.length === 0) return;
-
         onlineProfiles.forEach((profile) => {
             const completedQuest = grantCoins(profile, 1);
-            const socket = [...io.sockets.sockets.values()]
-                .find((candidate) => players.get(candidate.id)?.clientId === profile.clientId);
+            const socket = [...io.sockets.sockets.values()].find((candidate) => players.get(candidate.id)?.clientId === profile.clientId);
             if (socket) {
                 sendProfile(socket, profile);
-                if (completedQuest) sendSystemMessage(socket, `Quête terminée +${completedQuest.reward} coins.`);
+                notifyQuest(socket, profile, completedQuest);
             }
         });
-
         broadcastSystemMessage('Événement monde: +1 coin aux explorateurs connectés.');
         io.emit('world:meta', publicMeta());
         scheduleSave();
@@ -221,44 +201,26 @@ async function installFrontend() {
     if (process.env.NODE_ENV === 'production') {
         const distPath = join(__dirname, 'dist');
         app.use(express.static(distPath));
-        app.get('*', (_req, res) => {
-            res.sendFile(join(distPath, 'index.html'));
-        });
+        app.get('*', (_req, res) => res.sendFile(join(distPath, 'index.html')));
         return;
     }
-
-    const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: 'spa'
-    });
-
+    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
     app.use(vite.middlewares);
 }
 
 io.on('connection', (socket) => {
     socket.on('player:join', (payload = {}) => {
-        const state = sanitizePlayerState({
-            ...payload.state,
-            clientId: payload.clientId,
-            nickname: payload.nickname,
-            color: payload.color
-        });
+        const state = sanitizePlayerState({ ...payload.state, clientId: payload.clientId, nickname: payload.nickname, color: payload.color });
         const profile = getOrCreateProfile(state);
         const enrichedState = decorateStateWithProfile(state, profile);
-
         players.set(socket.id, enrichedState);
-
         socket.emit('world:init', {
             playerId: socket.id,
             profile,
             meta: publicMeta(),
-            world: {
-                params: gameState.params,
-                data: gameState.data
-            },
+            world: { params: gameState.params, data: gameState.data },
             players: getPlayersSnapshot()
         });
-
         socket.broadcast.emit('player:joined', { id: socket.id, state: enrichedState });
         sendProfile(socket, profile);
         broadcastSystemMessage(`${state.nickname} a rejoint le serveur`);
@@ -267,85 +229,49 @@ io.on('connection', (socket) => {
     socket.on('player:update', (rawState = {}) => {
         const previousState = players.get(socket.id);
         if (!previousState) return;
-
         const profile = gameState.profiles[previousState.clientId];
-        const state = sanitizePlayerState({
-            ...previousState,
-            ...rawState,
-            clientId: previousState.clientId,
-            nickname: previousState.nickname,
-            color: previousState.color
-        });
+        const state = sanitizePlayerState({ ...previousState, ...rawState, clientId: previousState.clientId, nickname: previousState.nickname, color: previousState.color });
         const enrichedState = decorateStateWithProfile(state, profile);
-
         players.set(socket.id, enrichedState);
         socket.broadcast.volatile.emit('player:update', { id: socket.id, state: enrichedState });
     });
 
     socket.on('player:interaction', (payload = {}) => {
         if (!players.has(socket.id)) return;
-
         const type = String(payload.type || '').slice(0, 32);
         if (!type) return;
-
-        socket.broadcast.emit('player:interaction', {
-            id: socket.id,
-            type,
-            createdAt: Date.now()
-        });
+        socket.broadcast.emit('player:interaction', { id: socket.id, type, createdAt: Date.now() });
     });
 
     socket.on('block:change', (payload = {}) => {
         refreshWorldEvent();
         const state = players.get(socket.id);
         if (!state) return;
-
         const change = normalizeBlockChange(payload);
         if (!change) return;
-
         if (!canBuildAt(state, change.x, change.z)) {
             denyBlockChange(socket, change, 'Zone protégée par un claim. Tape /claims pour voir les territoires.');
             return;
         }
-
         applyBlockChange(change);
         const profile = gameState.profiles[state.clientId];
         const completedQuest = updateProfileFromBlock(profile, change.blockId);
-
-        if (isWorldEventActive('goldrush') && change.blockId === 0) {
-            const goldRushQuest = grantCoins(profile, 4);
-            if (goldRushQuest) sendSystemMessage(socket, `Quête terminée +${goldRushQuest.reward} coins.`);
-        }
-
+        if (isWorldEventActive('goldrush') && change.blockId === 0) notifyQuest(socket, profile, grantCoins(profile, 4));
         sendProfile(socket, profile);
-        if (completedQuest) {
-            sendSystemMessage(socket, `Quête terminée +${completedQuest.reward} coins. Nouvelle quête: ${profile.quest.type === 'mine' ? 'miner' : profile.quest.type === 'place' ? 'placer' : 'gagner'} ${profile.quest.target}.`);
-        }
-
-        socket.broadcast.emit('block:change', {
-            ...change,
-            playerId: socket.id,
-            createdAt: Date.now()
-        });
+        notifyQuest(socket, profile, completedQuest);
+        socket.broadcast.emit('block:change', { ...change, playerId: socket.id, createdAt: Date.now() });
         io.emit('world:meta', publicMeta());
     });
 
     socket.on('world:params', (params = {}) => {
         const state = players.get(socket.id);
         if (!state) return;
-
         const sanitizedParams = sanitizeWorldParams(params);
         if (!sanitizedParams) return;
-
         gameState.params = sanitizedParams;
         gameState.data = {};
         scheduleSave();
-
-        socket.broadcast.emit('world:params', {
-            params: gameState.params,
-            data: gameState.data,
-            playerId: socket.id
-        });
+        socket.broadcast.emit('world:params', { params: gameState.params, data: gameState.data, playerId: socket.id });
         broadcastSystemMessage(`${state.nickname} a synchronisé un nouveau terrain.`);
     });
 
@@ -353,23 +279,13 @@ io.on('connection', (socket) => {
         refreshWorldEvent();
         const state = players.get(socket.id);
         if (!state) return;
-
         const message = String(payload.message || '').trim().slice(0, MAX_CHAT_LENGTH);
         if (!message) return;
-
         if (message.startsWith('/')) {
             handleChatCommand({ socket, io, players, state, saveWorldState, message });
             return;
         }
-
-        io.emit('chat:message', {
-            id: `${socket.id}-${Date.now()}`,
-            playerId: socket.id,
-            nickname: state.nickname,
-            color: state.color,
-            message,
-            createdAt: Date.now()
-        });
+        io.emit('chat:message', { id: `${socket.id}-${Date.now()}`, playerId: socket.id, nickname: state.nickname, color: state.color, message, createdAt: Date.now() });
     });
 
     socket.on('disconnect', () => {
@@ -378,24 +294,15 @@ io.on('connection', (socket) => {
             const profile = gameState.profiles[state.clientId];
             if (profile) profile.lastSeen = Date.now();
         }
-
         players.delete(socket.id);
         socket.broadcast.emit('player:left', { id: socket.id });
         scheduleSave();
-
         if (state) broadcastSystemMessage(`${state.nickname} a quitté le serveur`);
     });
 });
 
-process.on('SIGINT', async () => {
-    await saveWorldState();
-    process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-    await saveWorldState();
-    process.exit(0);
-});
+process.on('SIGINT', async () => { await saveWorldState(); process.exit(0); });
+process.on('SIGTERM', async () => { await saveWorldState(); process.exit(0); });
 
 await loadWorldState();
 await installFrontend();
@@ -403,8 +310,7 @@ startWorldEvents();
 setInterval(() => saveWorldState().catch(console.error), SAVE_INTERVAL_MS);
 
 httpServer.listen(PORT, () => {
-    const mode = process.env.NODE_ENV === 'production' && existsSync(join(__dirname, 'dist'))
-        ? 'production'
-        : 'dev';
+    const mode = process.env.NODE_ENV === 'production' && existsSync(join(__dirname, 'dist')) ? 'production' : 'dev';
     console.log(`Minecraft JavaScript Edition 2030 server running in ${mode} mode on http://localhost:${PORT}`);
+    console.log(`Diagnostics available on http://localhost:${PORT}/api/health and /api/status`);
 });
