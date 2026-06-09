@@ -4,10 +4,12 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node server.js",
     "dev:mp": "node server.js",
+    "dev:client": "vite",
     "server": "node server.js",
     "start": "node server.js",
+    "check": "node scripts/smoke-test.js",
     "build": "vite build",
     "preview": "vite preview"
   },
