@@ -20,6 +20,7 @@ import {
 } from './server/gameState.js';
 import { handleChatCommand, sendProfile, sendSystemMessage } from './server/chatCommands.js';
 import { installDiagnostics } from './server/diagnostics.js';
+import { handleExtraCommand } from './server/extraCommandRouter.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -282,7 +283,9 @@ io.on('connection', (socket) => {
         const message = String(payload.message || '').trim().slice(0, MAX_CHAT_LENGTH);
         if (!message) return;
         if (message.startsWith('/')) {
-            handleChatCommand({ socket, io, players, state, saveWorldState, message });
+            const context = { socket, io, players, state, saveWorldState, message };
+            if (handleExtraCommand(context)) return;
+            handleChatCommand(context);
             return;
         }
         io.emit('chat:message', { id: `${socket.id}-${Date.now()}`, playerId: socket.id, nickname: state.nickname, color: state.color, message, createdAt: Date.now() });
