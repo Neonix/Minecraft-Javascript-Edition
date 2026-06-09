@@ -17,25 +17,31 @@ function clone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
+function makeClientId() {
+    return `client-${crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`}`;
+}
+
 function makePlayerIdentity() {
     const stored = JSON.parse(localStorage.getItem('minecraft_multiplayer_identity') || 'null');
-    if (stored?.nickname && stored?.color) return stored;
+    if (stored?.clientId && stored?.nickname && stored?.color) return stored;
 
     const identity = {
-        nickname: `Player ${Math.floor(1000 + Math.random() * 9000)}`,
-        color: PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)]
+        clientId: stored?.clientId || makeClientId(),
+        nickname: stored?.nickname || `Player ${Math.floor(1000 + Math.random() * 9000)}`,
+        color: stored?.color || PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)]
     };
 
     localStorage.setItem('minecraft_multiplayer_identity', JSON.stringify(identity));
     return identity;
 }
 
-function blockChangeFromCoords(coords, blockId) {
+function blockChangeFromCoords(coords, blockId, previousBlockId = null) {
     return {
         x: Math.round(coords.x),
         y: Math.round(coords.y),
         z: Math.round(coords.z),
-        blockId
+        blockId,
+        previousBlockId
     };
 }
 
@@ -48,6 +54,11 @@ function getDataStoreKey(x, y, z) {
     return `${chunkX * CHUNK_WIDTH}-${chunkZ * CHUNK_WIDTH}-${blockX}-${y}-${blockZ}`;
 }
 
+function describeQuest(quest) {
+    if (!quest) return 'aucune quête';
+    return `${quest.type === 'mine' ? 'Miner' : 'Placer'} ${quest.target} blocs (${quest.progress}/${quest.target})`;
+}
+
 export class MultiplayerClient {
     constructor({ scene, world, player }) {
         this.scene = scene;
@@ -56,6 +67,8 @@ export class MultiplayerClient {
         this.identity = makePlayerIdentity();
         this.remotePlayers = new RemotePlayers(scene);
         this.playerId = null;
+        this.profile = null;
+        this.meta = { claims: {}, factions: {}, stats: {} };
         this.lastPlayerUpdateAt = 0;
         this.lastActiveBlockId = player.activeBlockId;
         this.paramsUpdateTimeout = null;
@@ -73,8 +86,9 @@ export class MultiplayerClient {
         });
 
         this.socket.on('connect', () => {
-            this.setStatus('Connecté au serveur multijoueur');
+            this.setStatus('Connecté au serveur 2030');
             this.socket.emit('player:join', {
+                clientId: this.identity.clientId,
                 nickname: this.identity.nickname,
                 color: this.identity.color,
                 state: this.getPlayerState()
@@ -90,8 +104,10 @@ export class MultiplayerClient {
             this.setStatus('Serveur multijoueur indisponible');
         });
 
-        this.socket.on('world:init', ({ playerId, world, players }) => {
+        this.socket.on('world:init', ({ playerId, world, players, profile, meta }) => {
             this.playerId = playerId;
+            this.profile = profile || null;
+            this.meta = meta || this.meta;
 
             if (world?.params) {
                 this.world.params = world.params;
@@ -101,7 +117,19 @@ export class MultiplayerClient {
 
             this.remotePlayers.sync(players, playerId);
             this.setPlayerCount(Object.keys(players || {}).length);
-            this.addChatLine('Server', 'Bienvenue sur le serveur ! T ou Entrée pour discuter.', true);
+            this.renderProfile();
+            this.renderMeta();
+            this.addChatLine('Server', 'Bienvenue. Tape /help pour les commandes 2030.', true);
+        });
+
+        this.socket.on('profile:update', (profile) => {
+            this.profile = profile;
+            this.renderProfile();
+        });
+
+        this.socket.on('world:meta', (meta) => {
+            this.meta = meta || this.meta;
+            this.renderMeta();
         });
 
         this.socket.on('world:params', ({ params, data }) => {
@@ -160,6 +188,9 @@ export class MultiplayerClient {
             <div id="multiplayer-status">Connexion...</div>
             <div id="multiplayer-count">1 joueur</div>
             <div id="multiplayer-name">${this.identity.nickname}</div>
+            <div id="multiplayer-profile">Profil: chargement...</div>
+            <div id="multiplayer-quest">Quête: chargement...</div>
+            <div id="multiplayer-meta">Claims: 0 · Factions: 0</div>
         `;
         document.body.append(panel);
 
@@ -168,13 +199,16 @@ export class MultiplayerClient {
         chat.innerHTML = `
             <div id="chat-log"></div>
             <form id="chat-form">
-                <input id="chat-input" maxlength="180" autocomplete="off" placeholder="Message..." />
+                <input id="chat-input" maxlength="180" autocomplete="off" placeholder="Message ou /help..." />
             </form>
         `;
         document.body.append(chat);
 
         this.statusEl = panel.querySelector('#multiplayer-status');
         this.countEl = panel.querySelector('#multiplayer-count');
+        this.profileEl = panel.querySelector('#multiplayer-profile');
+        this.questEl = panel.querySelector('#multiplayer-quest');
+        this.metaEl = panel.querySelector('#multiplayer-meta');
         this.chatLogEl = chat.querySelector('#chat-log');
         this.chatFormEl = chat.querySelector('#chat-form');
         this.chatInputEl = chat.querySelector('#chat-input');
@@ -238,7 +272,7 @@ export class MultiplayerClient {
         this.chatLogEl.append(line);
         this.chatLogEl.scrollTop = this.chatLogEl.scrollHeight;
 
-        while (this.chatLogEl.children.length > 8) {
+        while (this.chatLogEl.children.length > 10) {
             this.chatLogEl.firstChild.remove();
         }
     }
@@ -251,8 +285,28 @@ export class MultiplayerClient {
         if (this.countEl) this.countEl.textContent = `${count} joueur${count > 1 ? 's' : ''}`;
     }
 
+    renderProfile() {
+        if (!this.profile) return;
+        if (this.profileEl) {
+            this.profileEl.textContent = `${this.profile.coins} coins · ${this.profile.faction || 'sans faction'}`;
+        }
+        if (this.questEl) {
+            this.questEl.textContent = `Quête: ${describeQuest(this.profile.quest)}`;
+        }
+    }
+
+    renderMeta() {
+        if (!this.metaEl) return;
+        const claims = Object.keys(this.meta?.claims || {}).length;
+        const factions = Object.keys(this.meta?.factions || {}).length;
+        const mined = this.meta?.stats?.totalBlocksMined || 0;
+        const placed = this.meta?.stats?.totalBlocksPlaced || 0;
+        this.metaEl.textContent = `Claims: ${claims} · Factions: ${factions} · ${mined}/${placed} blocs`;
+    }
+
     getPlayerState() {
         return {
+            clientId: this.identity.clientId,
             nickname: this.identity.nickname,
             color: this.identity.color,
             position: {
@@ -281,9 +335,9 @@ export class MultiplayerClient {
         this.socket.volatile.emit('player:update', this.getPlayerState());
     }
 
-    sendBlockChange(coords, blockId) {
+    sendBlockChange(coords, blockId, previousBlockId = null) {
         if (!this.socket?.connected) return;
-        this.socket.emit('block:change', blockChangeFromCoords(coords, blockId));
+        this.socket.emit('block:change', blockChangeFromCoords(coords, blockId, previousBlockId));
     }
 
     sendInteraction(type) {
