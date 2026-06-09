@@ -1,3 +1,4 @@
+import "../mobile-fixes.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/Addons.js";
 import { World } from "./world";
