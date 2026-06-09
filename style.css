@@ -94,7 +94,7 @@ h1 {
     top: 12px;
     left: 12px;
     min-width: 285px;
-    max-width: 380px;
+    max-width: 400px;
     padding: 10px 12px;
     color: white;
     background: linear-gradient(135deg, rgba(0, 0, 0, 0.62), rgba(28, 36, 54, 0.62));
@@ -114,7 +114,8 @@ h1 {
 #multiplayer-name,
 #multiplayer-profile,
 #multiplayer-quest,
-#multiplayer-meta {
+#multiplayer-meta,
+#multiplayer-event {
     font-size: 0.9rem;
     line-height: 1.35;
     opacity: 0.92;
@@ -131,6 +132,11 @@ h1 {
 
 #multiplayer-meta {
     color: #9fd1ff;
+}
+
+#multiplayer-event {
+    margin-top: 4px;
+    color: #ffb3ff;
 }
 
 #chat {
