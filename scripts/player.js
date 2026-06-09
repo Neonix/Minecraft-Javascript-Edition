@@ -5,6 +5,7 @@ import { blocks } from "./blocks";
 import { Tool } from "./tool";
 
 const CENTER_SCREEN = new THREE.Vector2();
+const lookEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 export class Player {
     height = 1.75;
@@ -14,6 +15,7 @@ export class Player {
     jumpSpeed = 10;
     sprinting = false;
     onGround = false;
+    mobileControlsEnabled = false;
 
     input = new THREE.Vector3();
     velocity = new THREE.Vector3();
@@ -43,8 +45,8 @@ export class Player {
             document.getElementById('overlay').style.visibility = 'hidden';
         });
 
-        this.controls.addEventListener('unlock', function () {
-            document.getElementById('overlay').style.visibility = 'visible';
+        this.controls.addEventListener('unlock', () => {
+            document.getElementById('overlay').style.visibility = this.mobileControlsEnabled ? 'hidden' : 'visible';
         });
 
         this.camera.add(this.tool);
@@ -69,6 +71,10 @@ export class Player {
         scene.add(this.selectionHelper);
 
         this.raycaster.layers.set(0);
+    }
+
+    get isControlling() {
+        return this.controls.isLocked || this.mobileControlsEnabled;
     }
 
     /**
@@ -138,7 +144,7 @@ export class Player {
     }
 
     applyInputs(dt) {
-        if (this.controls.isLocked) {
+        if (this.isControlling) {
             this.velocity.x = this.input.x * (this.sprinting ? 1.3 : 1);
             this.velocity.z = this.input.z * (this.sprinting ? 1.3 : 1);
             this.controls.moveRight(this.velocity.x * dt);
@@ -165,11 +171,32 @@ export class Player {
         return this.camera.position;
     }
 
+    selectBlock(blockId) {
+        const nextBlockId = Number(blockId);
+        if (!Number.isInteger(nextBlockId) || nextBlockId < 0 || nextBlockId > 8) return;
+
+        document.getElementById(`toolbar-${this.activeBlockId}`)?.classList.remove('selected');
+        this.activeBlockId = nextBlockId;
+        document.getElementById(`toolbar-${this.activeBlockId}`)?.classList.add('selected');
+        this.tool.visible = (this.activeBlockId === 0);
+    }
+
+    addLookDelta(deltaX, deltaY) {
+        lookEuler.setFromQuaternion(this.camera.quaternion);
+        lookEuler.y -= deltaX * 0.003;
+        lookEuler.x -= deltaY * 0.003;
+        lookEuler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, lookEuler.x));
+        this.camera.quaternion.setFromEuler(lookEuler);
+    }
+
     /**
      * @param {KeyboardEvent} event 
      */
     onKeyDown(event) {
-        if (!this.controls.isLocked) {
+        const target = event.target;
+        if (event.defaultPrevented || target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+
+        if (!this.controls.isLocked && !this.mobileControlsEnabled) {
             this.controls.lock();
         }
 
@@ -183,12 +210,7 @@ export class Player {
             case 'Digit6':
             case 'Digit7':
             case 'Digit8':
-                document.getElementById(`toolbar-${this.activeBlockId}`).classList.remove('selected');
-                this.activeBlockId = Number(event.key);
-                document.getElementById(`toolbar-${this.activeBlockId}`).classList.add('selected');
-
-                // Only show the tool when it is currently active
-                this.tool.visible = (this.activeBlockId === 0);
+                this.selectBlock(Number(event.key));
                 break;
             case 'KeyW':
                 this.input.z = this.maxSpeed;
