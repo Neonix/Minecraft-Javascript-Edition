@@ -10,6 +10,7 @@ import {
     gameState,
     getDataStoreKey,
     getOrCreateProfile,
+    grantCoins,
     loadWorldState,
     publicMeta,
     saveWorldState,
@@ -142,10 +143,13 @@ function decorateStateWithProfile(state, profile) {
         ...state,
         profile: {
             clientId: profile.clientId,
+            title: profile.title,
             coins: profile.coins,
             faction: profile.faction,
             blocksMined: profile.blocksMined,
             blocksPlaced: profile.blocksPlaced,
+            structuresBuilt: profile.structuresBuilt || 0,
+            blueprintsSaved: profile.blueprintsSaved || 0,
             quest: profile.quest
         }
     };
@@ -174,8 +178,23 @@ function denyBlockChange(socket, change, reason) {
     }
 }
 
+function isWorldEventActive(type) {
+    return gameState.worldEvent?.type === type && gameState.worldEvent.expiresAt > Date.now();
+}
+
+function refreshWorldEvent() {
+    if (gameState.worldEvent && gameState.worldEvent.expiresAt <= Date.now()) {
+        const ended = gameState.worldEvent.label || 'Événement monde';
+        gameState.worldEvent = null;
+        io.emit('world:meta', publicMeta());
+        broadcastSystemMessage(`${ended} terminé.`);
+        scheduleSave();
+    }
+}
+
 function startWorldEvents() {
     setInterval(() => {
+        refreshWorldEvent();
         const onlineProfiles = [...players.values()]
             .map((state) => gameState.profiles[state.clientId])
             .filter(Boolean);
@@ -183,13 +202,17 @@ function startWorldEvents() {
         if (onlineProfiles.length === 0) return;
 
         onlineProfiles.forEach((profile) => {
-            profile.coins += 1;
+            const completedQuest = grantCoins(profile, 1);
             const socket = [...io.sockets.sockets.values()]
                 .find((candidate) => players.get(candidate.id)?.clientId === profile.clientId);
-            if (socket) sendProfile(socket, profile);
+            if (socket) {
+                sendProfile(socket, profile);
+                if (completedQuest) sendSystemMessage(socket, `Quête terminée +${completedQuest.reward} coins.`);
+            }
         });
 
         broadcastSystemMessage('Événement monde: +1 coin aux explorateurs connectés.');
+        io.emit('world:meta', publicMeta());
         scheduleSave();
     }, WORLD_EVENT_INTERVAL_MS);
 }
@@ -273,6 +296,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('block:change', (payload = {}) => {
+        refreshWorldEvent();
         const state = players.get(socket.id);
         if (!state) return;
 
@@ -287,9 +311,15 @@ io.on('connection', (socket) => {
         applyBlockChange(change);
         const profile = gameState.profiles[state.clientId];
         const completedQuest = updateProfileFromBlock(profile, change.blockId);
+
+        if (isWorldEventActive('goldrush') && change.blockId === 0) {
+            const goldRushQuest = grantCoins(profile, 4);
+            if (goldRushQuest) sendSystemMessage(socket, `Quête terminée +${goldRushQuest.reward} coins.`);
+        }
+
         sendProfile(socket, profile);
         if (completedQuest) {
-            sendSystemMessage(socket, `Quête terminée +${completedQuest.reward} coins. Nouvelle quête: ${profile.quest.type === 'mine' ? 'miner' : 'placer'} ${profile.quest.target} blocs.`);
+            sendSystemMessage(socket, `Quête terminée +${completedQuest.reward} coins. Nouvelle quête: ${profile.quest.type === 'mine' ? 'miner' : profile.quest.type === 'place' ? 'placer' : 'gagner'} ${profile.quest.target}.`);
         }
 
         socket.broadcast.emit('block:change', {
@@ -297,6 +327,7 @@ io.on('connection', (socket) => {
             playerId: socket.id,
             createdAt: Date.now()
         });
+        io.emit('world:meta', publicMeta());
     });
 
     socket.on('world:params', (params = {}) => {
@@ -319,6 +350,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('chat:message', (payload = {}) => {
+        refreshWorldEvent();
         const state = players.get(socket.id);
         if (!state) return;
 
