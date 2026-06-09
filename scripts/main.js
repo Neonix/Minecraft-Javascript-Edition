@@ -8,6 +8,7 @@ import { Physics } from "./physics";
 import { blocks } from "./blocks";
 import { ModelLoader } from "./modelLoader";
 import { MultiplayerClient } from "./multiplayer";
+import { MobileControls } from "./mobileControls";
 
 const stats = new Stats();
 document.body.append(stats.dom);
@@ -71,32 +72,41 @@ function setupLights() {
     scene.add(ambient);
 }
 
-function onMouseDown(event) {
-    if (event.target?.closest?.('#chat')) return;
+function tryInteract() {
+    if (!player.isControlling || !player.selectedCoords) return;
 
-    if (player.controls.isLocked && player.selectedCoords) {
-        const coords = player.selectedCoords.clone();
-        const selectedBlock = world.getBlock(coords.x, coords.y, coords.z);
-        const previousBlockId = selectedBlock?.id ?? blocks.empty.id;
+    const coords = player.selectedCoords.clone();
+    const selectedBlock = world.getBlock(coords.x, coords.y, coords.z);
+    const previousBlockId = selectedBlock?.id ?? blocks.empty.id;
 
-        if (player.activeBlockId === blocks.empty.id) {
-            if (!selectedBlock || selectedBlock.id === blocks.empty.id) return;
+    if (player.activeBlockId === blocks.empty.id) {
+        if (!selectedBlock || selectedBlock.id === blocks.empty.id) return;
 
-            world.removeBlock(coords.x, coords.y, coords.z);
-            player.tool.startAnimation();
-            multiplayer.sendBlockChange(coords, blocks.empty.id, previousBlockId);
-            multiplayer.sendInteraction('mine');
-        } else {
-            if (!selectedBlock || selectedBlock.id !== blocks.empty.id) return;
+        world.removeBlock(coords.x, coords.y, coords.z);
+        player.tool.startAnimation();
+        multiplayer.sendBlockChange(coords, blocks.empty.id, previousBlockId);
+        multiplayer.sendInteraction('mine');
+    } else {
+        if (!selectedBlock || selectedBlock.id !== blocks.empty.id) return;
 
-            world.addBlock(coords.x, coords.y, coords.z, player.activeBlockId);
-            multiplayer.sendBlockChange(coords, player.activeBlockId, previousBlockId);
-            multiplayer.sendInteraction('place');
-        }
+        world.addBlock(coords.x, coords.y, coords.z, player.activeBlockId);
+        multiplayer.sendBlockChange(coords, player.activeBlockId, previousBlockId);
+        multiplayer.sendInteraction('place');
     }
 }
 
+function onMouseDown(event) {
+    if (event.target?.closest?.('#chat') || event.target?.closest?.('#mobile-controls')) return;
+    tryInteract();
+}
+
 document.addEventListener('mousedown', onMouseDown);
+
+new MobileControls({
+    player,
+    onAction: tryInteract,
+    onChat: () => multiplayer.openChat()
+});
 
 // Render loop
 let previousTime = performance.now();
@@ -106,7 +116,7 @@ function animate() {
 
     requestAnimationFrame(animate);
 
-    if (player.controls.isLocked) {
+    if (player.isControlling) {
         player.update(world);
         physics.update(dt, player, world);
         world.update(player);
@@ -118,7 +128,7 @@ function animate() {
 
     multiplayer.update(dt);
 
-    renderer.render(scene, player.controls.isLocked ? player.camera : orbitCamera);
+    renderer.render(scene, player.isControlling ? player.camera : orbitCamera);
     stats.update();
 
     previousTime = currentTime;
