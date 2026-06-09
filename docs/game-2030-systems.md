@@ -19,6 +19,10 @@ Persisted data includes:
 - server spawn
 - active world event metadata
 - server news
+- market listings
+- player contracts
+- kit cooldowns
+- reputation
 - global stats
 
 The `data/` directory is intentionally ignored by Git.
@@ -30,7 +34,7 @@ Players earn coins by playing:
 - mining a block: +2 coins
 - placing a block: +1 coin
 - periodic world reward: +1 coin while connected
-- quests, daily rewards and events can add bonus coins
+- quests, daily rewards, kits, contracts and events can add bonus coins
 
 Useful commands:
 
@@ -46,6 +50,29 @@ Useful commands:
 /buy title <title>
 /buy festival
 /pay <player> <coins>
+/economy
+/backup
+```
+
+## Economy Plus
+
+Economy Plus adds kits, marketplace listings, player-funded contracts and reputation.
+
+```text
+/kit
+/kit starter
+/kit builder
+/kit explorer
+/market list
+/market sell <price> <text>
+/market buy <id>
+/market cancel <id>
+/contract list
+/contract create <reward> <text>
+/contract accept <id>
+/contract complete <id>
+/rep
+/rep <player>
 ```
 
 ## Travel layer
