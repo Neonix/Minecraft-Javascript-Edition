@@ -1,5 +1,5 @@
 import { gameState, scheduleSave, slugify } from './gameState.js';
-import { sendSystemMessage } from './chatCommands.js';
+import { sendProfile, sendSystemMessage } from './chatCommands.js';
 
 function ensureTravel(profile) {
     profile.homes ??= {};
@@ -83,6 +83,7 @@ export function handleTravelCommand({ socket, state, message }) {
             position: pos(state),
             createdAt: Date.now()
         };
+        sendProfile(socket, profile);
         scheduleSave();
         sendSystemMessage(socket, `Warp ${name} cree.`);
         return true;
