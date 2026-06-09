@@ -1,0 +1,134 @@
+body {
+    touch-action: none;
+    overscroll-behavior: none;
+}
+
+#chat-input {
+    display: block !important;
+    max-height: 0;
+    padding: 0 10px !important;
+    opacity: 0;
+    border-width: 0 !important;
+    pointer-events: none;
+}
+
+#chat-input:focus,
+#chat-input.chat-open {
+    max-height: 80px;
+    padding: 10px !important;
+    opacity: 1;
+    border-width: 3px !important;
+    pointer-events: auto;
+}
+
+#mobile-controls {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+}
+
+#mobile-controls.visible {
+    display: block;
+}
+
+#mobile-look-zone {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 62vw;
+    height: 100vh;
+    pointer-events: auto;
+}
+
+#mobile-stick {
+    position: absolute;
+    left: 28px;
+    bottom: 118px;
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.35);
+    border: 3px solid rgba(255, 255, 255, 0.45);
+    pointer-events: auto;
+}
+
+#mobile-stick-knob {
+    position: absolute;
+    left: 39px;
+    top: 39px;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.72);
+    border: 2px solid rgba(0, 0, 0, 0.4);
+}
+
+#mobile-buttons {
+    position: absolute;
+    right: 22px;
+    bottom: 112px;
+    display: grid;
+    grid-template-columns: repeat(2, 74px);
+    gap: 10px;
+    pointer-events: auto;
+}
+
+.mobile-button {
+    min-width: 58px;
+    min-height: 48px;
+    border: 3px solid rgba(255, 255, 255, 0.72);
+    border-radius: 10px;
+    color: white;
+    background: rgba(0, 0, 0, 0.48);
+    font-family: 'Minecraft', sans-serif;
+    font-size: 0.82rem;
+    text-shadow: 2px 2px 0 #000;
+}
+
+#mobile-blocks {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 5px;
+    pointer-events: auto;
+}
+
+#mobile-blocks .mobile-button {
+    min-width: 38px;
+    min-height: 38px;
+    font-size: 0.75rem;
+}
+
+@media (pointer: coarse), (max-width: 900px) {
+    #toolbar-container {
+        display: none;
+    }
+
+    #multiplayer-panel {
+        top: 8px;
+        left: 8px;
+        min-width: 0;
+        width: calc(100vw - 32px);
+        max-width: 360px;
+        font-size: 0.8rem;
+    }
+
+    #chat {
+        bottom: 64px;
+        left: 8px;
+        width: calc(100vw - 16px);
+    }
+
+    #chat-log {
+        max-height: 120px;
+    }
+
+    #overlay {
+        font-size: 1rem;
+        padding: 16px;
+    }
+}
