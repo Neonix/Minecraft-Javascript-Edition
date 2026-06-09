@@ -56,7 +56,16 @@ function getDataStoreKey(x, y, z) {
 
 function describeQuest(quest) {
     if (!quest) return 'aucune quête';
+    if (quest.type === 'earn') return `Gagner ${quest.target} coins (${quest.progress}/${quest.target})`;
     return `${quest.type === 'mine' ? 'Miner' : 'Placer'} ${quest.target} blocs (${quest.progress}/${quest.target})`;
+}
+
+function formatTimeLeft(expiresAt) {
+    if (!expiresAt) return '';
+    const seconds = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+    const minutes = Math.floor(seconds / 60);
+    const rest = seconds % 60;
+    return `${minutes}:${String(rest).padStart(2, '0')}`;
 }
 
 export class MultiplayerClient {
@@ -68,7 +77,7 @@ export class MultiplayerClient {
         this.remotePlayers = new RemotePlayers(scene);
         this.playerId = null;
         this.profile = null;
-        this.meta = { claims: {}, factions: {}, stats: {} };
+        this.meta = { claims: {}, factions: {}, blueprints: {}, stats: {}, worldEvent: null };
         this.lastPlayerUpdateAt = 0;
         this.lastActiveBlockId = player.activeBlockId;
         this.paramsUpdateTimeout = null;
@@ -132,6 +141,14 @@ export class MultiplayerClient {
             this.renderMeta();
         });
 
+        this.socket.on('player:teleport', ({ position, message }) => {
+            if (!position) return;
+            this.player.position.set(position.x, position.y, position.z);
+            this.player.velocity?.set?.(0, 0, 0);
+            this.sendPlayerUpdate(true);
+            this.addChatLine('Server', message || 'Téléportation.', true);
+        });
+
         this.socket.on('world:params', ({ params, data }) => {
             if (params) this.world.params = params;
             this.world.dataStore.data = data || {};
@@ -191,6 +208,7 @@ export class MultiplayerClient {
             <div id="multiplayer-profile">Profil: chargement...</div>
             <div id="multiplayer-quest">Quête: chargement...</div>
             <div id="multiplayer-meta">Claims: 0 · Factions: 0</div>
+            <div id="multiplayer-event">Événement: aucun</div>
         `;
         document.body.append(panel);
 
@@ -209,6 +227,7 @@ export class MultiplayerClient {
         this.profileEl = panel.querySelector('#multiplayer-profile');
         this.questEl = panel.querySelector('#multiplayer-quest');
         this.metaEl = panel.querySelector('#multiplayer-meta');
+        this.eventEl = panel.querySelector('#multiplayer-event');
         this.chatLogEl = chat.querySelector('#chat-log');
         this.chatFormEl = chat.querySelector('#chat-form');
         this.chatInputEl = chat.querySelector('#chat-input');
@@ -288,7 +307,7 @@ export class MultiplayerClient {
     renderProfile() {
         if (!this.profile) return;
         if (this.profileEl) {
-            this.profileEl.textContent = `${this.profile.coins} coins · ${this.profile.faction || 'sans faction'}`;
+            this.profileEl.textContent = `${this.profile.title || 'Explorateur'} · ${this.profile.coins} coins · ${this.profile.faction || 'sans faction'} · ${this.profile.structuresBuilt || 0} builds`;
         }
         if (this.questEl) {
             this.questEl.textContent = `Quête: ${describeQuest(this.profile.quest)}`;
@@ -299,9 +318,15 @@ export class MultiplayerClient {
         if (!this.metaEl) return;
         const claims = Object.keys(this.meta?.claims || {}).length;
         const factions = Object.keys(this.meta?.factions || {}).length;
+        const blueprints = Object.keys(this.meta?.blueprints || {}).length;
         const mined = this.meta?.stats?.totalBlocksMined || 0;
         const placed = this.meta?.stats?.totalBlocksPlaced || 0;
-        this.metaEl.textContent = `Claims: ${claims} · Factions: ${factions} · ${mined}/${placed} blocs`;
+        this.metaEl.textContent = `Claims: ${claims} · Factions: ${factions} · BP: ${blueprints} · ${mined}/${placed} blocs`;
+
+        if (this.eventEl) {
+            const event = this.meta?.worldEvent;
+            this.eventEl.textContent = event ? `Événement: ${event.label || event.type} · ${formatTimeLeft(event.expiresAt)}` : 'Événement: aucun';
+        }
     }
 
     getPlayerState() {
