@@ -1,3 +1,5 @@
+import '../compatibility-fixes.css';
+
 function hasWebGL() {
     try {
         const canvas = document.createElement('canvas');
