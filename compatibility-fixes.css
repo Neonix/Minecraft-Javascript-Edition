@@ -1,0 +1,77 @@
+canvas {
+    touch-action: none;
+}
+
+#compatibility-status {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    top: calc(12px + env(safe-area-inset-top));
+    z-index: 20;
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 12px 14px;
+    color: white;
+    background: rgba(0, 0, 0, 0.82);
+    border: 3px solid rgba(255, 255, 255, 0.7);
+    text-shadow: 2px 2px 0 #000;
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: none;
+}
+
+#compatibility-status.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+#chat-input {
+    font-size: 16px !important;
+}
+
+#action-menu-toggle {
+    top: calc(12px + env(safe-area-inset-top));
+    right: calc(12px + env(safe-area-inset-right));
+}
+
+#action-menu-panel {
+    max-height: min(78vh, calc(var(--vh, 1vh) * 78));
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+#mobile-look-zone {
+    height: calc(var(--vh, 1vh) * 100);
+}
+
+#mobile-stick {
+    left: calc(28px + env(safe-area-inset-left));
+    bottom: calc(118px + env(safe-area-inset-bottom));
+}
+
+#mobile-buttons {
+    right: calc(22px + env(safe-area-inset-right));
+    bottom: calc(112px + env(safe-area-inset-bottom));
+}
+
+#mobile-blocks {
+    bottom: calc(10px + env(safe-area-inset-bottom));
+}
+
+@media (pointer: coarse), (max-width: 900px) {
+    #action-menu-toggle {
+        bottom: calc(174px + env(safe-area-inset-bottom));
+        right: calc(22px + env(safe-area-inset-right));
+    }
+
+    #multiplayer-panel {
+        top: calc(8px + env(safe-area-inset-top));
+        left: calc(8px + env(safe-area-inset-left));
+    }
+
+    #chat {
+        bottom: calc(64px + env(safe-area-inset-bottom));
+        left: calc(8px + env(safe-area-inset-left));
+    }
+}
