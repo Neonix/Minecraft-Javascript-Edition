@@ -1,6 +1,8 @@
 import { gameState } from './gameState.js';
 import { sendSystemMessage } from './chatCommands.js';
 
+const SERVER_VERSION = '2030.7';
+
 function topProfiles(selector, label) {
     return Object.values(gameState.profiles)
         .slice()
@@ -13,6 +15,11 @@ function topProfiles(selector, label) {
 export function handleGuideCommand({ socket, players, message }) {
     const [raw, ...args] = message.slice(1).split(/\s+/);
     const command = raw.toLowerCase();
+
+    if (command === 'version') {
+        sendSystemMessage(socket, `Server version ${SERVER_VERSION}. Features: multi, mobile, claims, economy, blueprints, parties, market, contracts, guides.`);
+        return true;
+    }
 
     if (command === 'testplan') {
         sendSystemMessage(socket, 'Test: ouvre 2 onglets, bouge les 2 joueurs, envoie un chat, mine/place un bloc, teste /claim puis essaie de casser depuis l autre joueur, teste /daily, /market, /contract, /spawn, puis regarde /api/status.');
