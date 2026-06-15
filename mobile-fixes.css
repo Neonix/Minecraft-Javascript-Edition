@@ -21,6 +21,74 @@ body {
     pointer-events: auto;
 }
 
+#action-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    font-family: 'Minecraft', sans-serif;
+}
+
+#action-menu-toggle {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    min-width: 78px;
+    min-height: 42px;
+    pointer-events: auto;
+    color: white;
+    background: rgba(0, 0, 0, 0.55);
+    border: 3px solid rgba(255, 255, 255, 0.75);
+    text-shadow: 2px 2px 0 #000;
+    font-family: 'Minecraft', sans-serif;
+}
+
+#action-menu-panel {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(720px, calc(100vw - 28px));
+    padding: 18px;
+    color: white;
+    background: rgba(0, 0, 0, 0.76);
+    border: 4px solid rgba(255, 255, 255, 0.75);
+    text-align: center;
+    pointer-events: auto;
+    text-shadow: 2px 2px 0 #000;
+}
+
+#action-menu.open #action-menu-panel {
+    display: block;
+}
+
+#action-menu-title {
+    font-size: 1.8rem;
+    margin-bottom: 6px;
+}
+
+#action-menu-subtitle {
+    font-size: 0.95rem;
+    opacity: 0.82;
+    margin-bottom: 16px;
+}
+
+#action-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(110px, 1fr));
+    gap: 10px;
+}
+
+.action-menu-button {
+    min-height: 54px;
+    color: white;
+    background: rgba(45, 58, 82, 0.88);
+    border: 3px solid rgba(255, 255, 255, 0.65);
+    font-family: 'Minecraft', sans-serif;
+    text-shadow: 2px 2px 0 #000;
+}
+
 #mobile-controls {
     display: none;
     position: fixed;
@@ -106,6 +174,22 @@ body {
 @media (pointer: coarse), (max-width: 900px) {
     #toolbar-container {
         display: none;
+    }
+
+    #action-menu-toggle {
+        top: auto;
+        bottom: 174px;
+        right: 22px;
+        min-height: 48px;
+    }
+
+    #action-menu-panel {
+        max-height: 78vh;
+        overflow: auto;
+    }
+
+    #action-menu-grid {
+        grid-template-columns: repeat(2, minmax(110px, 1fr));
     }
 
     #multiplayer-panel {
