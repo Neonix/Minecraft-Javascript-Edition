@@ -1,3 +1,5 @@
+import './multiplayerCommandPatch';
+
 const QUICK_ACTIONS = [
     { label: 'Resume', type: 'resume' },
     { label: 'Chat', type: 'chat' },
