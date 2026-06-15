@@ -23,7 +23,9 @@ import { installDiagnostics } from './server/diagnostics.js';
 import { handleExtraCommand } from './server/extraCommandRouter.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 3000);
+const PUBLIC_URL = process.env.PUBLIC_URL || `http://localhost:${PORT}`;
 const SAVE_INTERVAL_MS = 15_000;
 const WORLD_EVENT_INTERVAL_MS = 180_000;
 const MAX_CHAT_LENGTH = 180;
@@ -312,8 +314,9 @@ await installFrontend();
 startWorldEvents();
 setInterval(() => saveWorldState().catch(console.error), SAVE_INTERVAL_MS);
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, HOST, () => {
     const mode = process.env.NODE_ENV === 'production' && existsSync(join(__dirname, 'dist')) ? 'production' : 'dev';
-    console.log(`Minecraft JavaScript Edition 2030 server running in ${mode} mode on http://localhost:${PORT}`);
-    console.log(`Diagnostics available on http://localhost:${PORT}/api/health and /api/status`);
+    console.log(`Minecraft JavaScript Edition 2030 server running in ${mode} mode on http://${HOST}:${PORT}`);
+    console.log(`Public URL: ${PUBLIC_URL}`);
+    console.log(`Diagnostics: ${PUBLIC_URL}/api/health and ${PUBLIC_URL}/api/status`);
 });
