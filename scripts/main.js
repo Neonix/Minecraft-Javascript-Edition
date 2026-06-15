@@ -10,6 +10,7 @@ import { blocks } from "./blocks";
 import { ModelLoader } from "./modelLoader";
 import { MultiplayerClient } from "./multiplayer";
 import { MobileControls } from "./mobileControls";
+import { ActionMenu } from "./actionMenu";
 
 const stats = new Stats();
 document.body.append(stats.dom);
@@ -97,7 +98,7 @@ function tryInteract() {
 }
 
 function onMouseDown(event) {
-    if (event.target?.closest?.('#chat') || event.target?.closest?.('#mobile-controls')) return;
+    if (event.target?.closest?.('#chat') || event.target?.closest?.('#mobile-controls') || event.target?.closest?.('#action-menu')) return;
     tryInteract();
 }
 
@@ -108,6 +109,8 @@ new MobileControls({
     onAction: tryInteract,
     onChat: () => multiplayer.openChat()
 });
+
+new ActionMenu({ player, multiplayer });
 
 // Render loop
 let previousTime = performance.now();
