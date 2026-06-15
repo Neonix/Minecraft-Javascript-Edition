@@ -36,6 +36,20 @@ function setViewportUnit() {
     document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
 }
 
+function ensureViewportFit() {
+    let meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) {
+        meta = document.createElement('meta');
+        meta.name = 'viewport';
+        document.head.append(meta);
+    }
+
+    const content = meta.getAttribute('content') || 'width=device-width, initial-scale=1.0';
+    if (!content.includes('viewport-fit=cover')) {
+        meta.setAttribute('content', `${content}, viewport-fit=cover`);
+    }
+}
+
 function createStatusPanel(messages) {
     const panel = document.createElement('div');
     panel.id = 'compatibility-status';
@@ -46,6 +60,8 @@ function createStatusPanel(messages) {
 }
 
 export function installCompatibilityStatus() {
+    ensureViewportFit();
+
     const flags = getBrowserFlags();
     document.documentElement.classList.toggle('is-ios', flags.ios);
     document.documentElement.classList.toggle('is-android', flags.android);
